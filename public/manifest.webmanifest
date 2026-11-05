@@ -1,0 +1,17 @@
+{
+  "name": "Cobranza GD - Control de Cobranzas en Google Drive",
+  "short_name": "Cobranza GD",
+  "description": "Gestiona tus cobranzas, cuotas, préstamos y suscripciones guardando la información en tu propio Google Drive.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
