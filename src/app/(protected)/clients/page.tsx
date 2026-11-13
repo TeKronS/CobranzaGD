@@ -23,16 +23,80 @@ import {
   UserCheck,
   CheckCircle2,
   RotateCcw,
+  ShoppingBag,
+  Plus,
+  DollarSign,
 } from 'lucide-react';
 
 export default function ClientsPage() {
-  const { clients, activeProject, archiveClient, reactivateClient, refundSubscription } = useProjects();
+  const { clients, activeProject, archiveClient, reactivateClient, refundSubscription, addSaleToClient } = useProjects();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'activos' | 'inactivos' | 'mora' | 'proximos' | 'todos'>('activos');
   const [selectedClient, setSelectedClient] = useState<EnrichedClient | null>(null);
   const [paymentModalClient, setPaymentModalClient] = useState<EnrichedClient | null>(null);
   const [refundModalClient, setRefundModalClient] = useState<EnrichedClient | null>(null);
+
+  // States for adding a sale to client in Pago Único
+  const [showAddSale, setShowAddSale] = useState(false);
+  const [saleItemName, setSaleItemName] = useState('');
+  const [saleItemQty, setSaleItemQty] = useState('1');
+  const [saleItemTotal, setSaleItemTotal] = useState('');
+  const [saleItemDate, setSaleItemDate] = useState('');
+  const [isAddingSale, setIsAddingSale] = useState(false);
+
+  const handleAddSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClient || !saleItemName.trim() || !saleItemTotal) return;
+    setIsAddingSale(true);
+    const qty = parseInt(saleItemQty) || 1;
+    const total = parseFloat(saleItemTotal) || 0;
+    const fecha = saleItemDate || new Date().toISOString().split('T')[0];
+
+    await addSaleToClient(selectedClient.id, {
+      nombre: saleItemName.trim(),
+      cantidad: qty,
+      precioTotal: total,
+      fecha,
+    });
+
+    // Update selectedClient locally so bottomsheet reflects changes immediately
+    const newArticles = [
+      {
+        id: `item-${Date.now()}`,
+        nombre: saleItemName.trim(),
+        cantidad: qty,
+        precioTotal: total,
+        precioUnitario: qty > 0 ? parseFloat((total / qty).toFixed(2)) : total,
+        fecha,
+      },
+      ...(selectedClient.config?.articulosVendidos || []),
+    ];
+    const prevDebt = selectedClient.config?.deudaRestante !== undefined ? selectedClient.config.deudaRestante : (selectedClient.monto || 0);
+    const newDebt = parseFloat((prevDebt + total).toFixed(2));
+    const newMonto = parseFloat(((selectedClient.monto || 0) + total).toFixed(2));
+
+    setSelectedClient({
+      ...selectedClient,
+      monto: newMonto,
+      deudaRestante: newDebt,
+      deudaRestanteFormateada: formatCurrency(newDebt, selectedClient.moneda),
+      montoFormateado: formatCurrency(newMonto, selectedClient.moneda),
+      config: {
+        ...(selectedClient.config || {}),
+        articulosVendidos: newArticles,
+        deudaRestante: newDebt,
+        productoNombre: saleItemName.trim(),
+      },
+    });
+
+    setSaleItemName('');
+    setSaleItemQty('1');
+    setSaleItemTotal('');
+    setSaleItemDate('');
+    setShowAddSale(false);
+    setIsAddingSale(false);
+  };
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
@@ -273,6 +337,184 @@ export default function ClientsPage() {
                 </span>
                 <ExternalLink className="w-4 h-4" />
               </a>
+            )}
+
+            {/* REGISTRO DE ARTÍCULOS VENDIDOS / HISTORIAL DE VENTAS (PAGO ÚNICO) */}
+            {(activeProject?.tipo === 'unico' || selectedClient.frecuencia === 'unico') && (
+              <div className="space-y-2.5 bg-slate-900/60 p-3.5 rounded-2xl border border-amber-500/30">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center space-x-1.5">
+                    <ShoppingBag className="w-4 h-4 text-amber-400" />
+                    <span>Artículos Vendidos / Fiados</span>
+                  </h5>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddSale(!showAddSale);
+                      setSaleItemDate(new Date().toISOString().split('T')[0]);
+                    }}
+                    className="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] font-bold text-amber-300 flex items-center space-x-1 active:scale-95 transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{showAddSale ? 'Cerrar' : '+ Agregar Artículo'}</span>
+                  </button>
+                </div>
+
+                {/* FORMULARIO DESPLEGABLE PARA ANOTAR NUEVA VENTA */}
+                {showAddSale && (
+                  <form onSubmit={handleAddSale} className="p-3 rounded-xl bg-slate-950/80 border border-amber-500/40 space-y-2.5 mt-2">
+                    <span className="text-[11px] font-bold text-white block">
+                      Anotar nuevo artículo vendido a {selectedClient.nombre}
+                    </span>
+
+                    {/* SELECTOR DESDE CATÁLOGO SI EXISTEN ARTÍCULOS */}
+                    {activeProject?.productosCredito && activeProject.productosCredito.length > 0 && (
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-semibold mb-0.5">
+                          Seleccionar del Catálogo (Opcional)
+                        </label>
+                        <select
+                          onChange={e => {
+                            const pId = e.target.value;
+                            if (!pId) return;
+                            const prod = activeProject.productosCredito?.find(p => p.id === pId);
+                            if (prod) {
+                              setSaleItemName(prod.nombre);
+                              const q = parseInt(saleItemQty) || 1;
+                              setSaleItemTotal((prod.precio * q).toFixed(2));
+                            }
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs bg-slate-900 text-slate-200"
+                          defaultValue=""
+                        >
+                          <option value="">-- Cargar artículo del catálogo --</option>
+                          {activeProject.productosCredito.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.nombre} {p.modelo ? `(${p.modelo})` : ''} — ${p.precio.toFixed(2)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-2">
+                        <label className="block text-[10px] text-slate-400 uppercase font-semibold mb-0.5">
+                          Nombre del Artículo *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ej: Harina Pan, Pepito..."
+                          value={saleItemName}
+                          onChange={e => setSaleItemName(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs"
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-semibold mb-0.5">
+                          Cantidad
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={saleItemQty}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setSaleItemQty(val);
+                            const match = activeProject?.productosCredito?.find(p => p.nombre.toLowerCase() === saleItemName.toLowerCase());
+                            if (match) {
+                              const q = parseInt(val) || 1;
+                              setSaleItemTotal((match.precio * q).toFixed(2));
+                            }
+                          }}
+                          className="w-full px-2 py-1.5 rounded-lg glass-input text-xs text-center font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-semibold mb-0.5">
+                          Monto Total ($) *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          required
+                          placeholder="0.00"
+                          value={saleItemTotal}
+                          onChange={e => setSaleItemTotal(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-bold text-amber-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-semibold mb-0.5">
+                          Fecha de Venta
+                        </label>
+                        <input
+                          type="date"
+                          value={saleItemDate || new Date().toISOString().split('T')[0]}
+                          onChange={e => setSaleItemDate(e.target.value)}
+                          className="w-full px-2 py-1.5 rounded-lg glass-input text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isAddingSale}
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs shadow-md active:scale-98 transition-all flex items-center justify-center space-x-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>{isAddingSale ? 'Guardando en Drive...' : 'Guardar Artículo y Sumar a Deuda'}</span>
+                    </button>
+                  </form>
+                )}
+
+                {/* LISTADO DE ARTÍCULOS QUE SE LE HAN VENDIDO */}
+                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                  {(selectedClient.config?.articulosVendidos && selectedClient.config.articulosVendidos.length > 0) ? (
+                    selectedClient.config.articulosVendidos.map(art => (
+                      <div
+                        key={art.id}
+                        className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs"
+                      >
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-white block">
+                            {art.nombre} {art.cantidad > 1 ? `(x${art.cantidad})` : ''}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Vendido el: {formatDateDDMMAAAA(art.fecha)}
+                          </span>
+                        </div>
+                        <span className="font-extrabold text-amber-400">
+                          {formatCurrency(art.precioTotal || 0, selectedClient.moneda)}
+                        </span>
+                      </div>
+                    ))
+                  ) : selectedClient.config?.productoNombre ? (
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="font-bold text-white block">
+                          {selectedClient.config.productoNombre} {selectedClient.config.productoCantidad ? `(x${selectedClient.config.productoCantidad})` : ''}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          Vendido el: {formatDateDDMMAAAA(selectedClient.fechaInicio)}
+                        </span>
+                      </div>
+                      <span className="font-extrabold text-amber-400">
+                        {selectedClient.montoFormateado}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic text-center py-2">
+                      No hay artículos registrados para este cliente. Presiona &quot;+ Agregar Artículo&quot; para anotar lo que se le vendió.
+                    </p>
+                  )}
+                </div>
+              </div>
             )}
 
             {/* CRONOGRAMA DE CUOTAS */}

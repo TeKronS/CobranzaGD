@@ -11,7 +11,7 @@ import { InitialBusinessSelector } from './InitialBusinessSelector';
 import { CreditProductManagerModal } from './CreditProductManagerModal';
 import { generateCuotasPlan } from '../lib/clients';
 import { uploadClientFileToDrive, uploadDocumentToDriveFolder } from '../lib/drive';
-import type { Frequency, Currency, TipoCobro, Project, Cuota } from '../types';
+import type { Frequency, Currency, TipoCobro, Project, Cuota, SingleSaleItem } from '../types';
 import {
   CreditCard,
   Repeat,
@@ -415,16 +415,33 @@ function AuthenticatedApp({ children }: { children: React.ReactNode }) {
           productoSerial: prod?.serial || undefined,
         };
       } else {
-        // 'unico' / Fiado
+        // 'unico' / Fiado / Venta Única
         finalMonto = parseFloat(fiadoMonto) || 0;
         finalMoneda = fiadoMoneda;
         finalFrecuencia = 'unico';
         finalFechaInicio = new Date().toISOString().split('T')[0];
         finalFechaVence = '';
+
+        const qty = parseInt(fiadoCantidad) || 1;
+        const initialArticles: SingleSaleItem[] = fiadoProducto.trim()
+          ? [
+              {
+                id: `item-${Date.now()}`,
+                nombre: fiadoProducto.trim(),
+                cantidad: qty,
+                precioTotal: finalMonto,
+                precioUnitario: qty > 0 ? parseFloat((finalMonto / qty).toFixed(2)) : finalMonto,
+                fecha: finalFechaInicio,
+              },
+            ]
+          : [];
+
         configObj = {
           documentoLegalUrl: documentoLegalURL.trim() || undefined,
           productoNombre: fiadoProducto.trim() || undefined,
-          productoCantidad: parseInt(fiadoCantidad) || 1,
+          productoCantidad: qty,
+          articulosVendidos: initialArticles,
+          deudaRestante: finalMonto,
         };
       }
 
@@ -1061,10 +1078,77 @@ function AuthenticatedApp({ children }: { children: React.ReactNode }) {
                 <span>Registro de Deuda Fiada / Venta Única</span>
               </h4>
 
+              {/* SELECTOR DESDE CATÁLOGO SI TIENE ARTÍCULOS */}
+              {activeProject?.productosCredito && activeProject.productosCredito.length > 0 && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Seleccionar del Catálogo (Opcional)
+                  </label>
+                  <select
+                    onChange={e => {
+                      const prodId = e.target.value;
+                      if (!prodId) return;
+                      const prod = activeProject.productosCredito?.find(p => p.id === prodId);
+                      if (prod) {
+                        setFiadoProducto(prod.nombre);
+                        const c = parseInt(fiadoCantidad) || 1;
+                        setFiadoMonto((prod.precio * c).toFixed(2));
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl glass-input text-xs bg-slate-900 text-slate-200"
+                    defaultValue=""
+                  >
+                    <option value="">-- Cargar artículo del catálogo --</option>
+                    {activeProject.productosCredito.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre} {p.modelo ? `(${p.modelo})` : ''} — ${p.precio.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Artículo / Producto *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Harina Pan, Pepito, Zapatos..."
+                    value={fiadoProducto}
+                    onChange={e => setFiadoProducto(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Cantidad
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={fiadoCantidad}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFiadoCantidad(val);
+                      // Si hay un producto del catalogo que coincide con el nombre, recalcular
+                      const match = activeProject?.productosCredito?.find(p => p.nombre.toLowerCase() === fiadoProducto.toLowerCase());
+                      if (match) {
+                        const c = parseInt(val) || 1;
+                        setFiadoMonto((match.precio * c).toFixed(2));
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-center font-bold"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    Monto de la Deuda ($) *
+                    Monto Total de la Venta ($) *
                   </label>
                   <input
                     type="number"
@@ -1090,32 +1174,6 @@ function AuthenticatedApp({ children }: { children: React.ReactNode }) {
                     <option value="COP">COP ($)</option>
                     <option value="EUR">EUR (€)</option>
                   </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    Producto Dejado Fiado (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej: 2 Sacos de Alimento / Ropa"
-                    value={fiadoProducto}
-                    onChange={e => setFiadoProducto(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    Cantidad
-                  </label>
-                  <input
-                    type="number"
-                    value={fiadoCantidad}
-                    onChange={e => setFiadoCantidad(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-center font-bold"
-                  />
                 </div>
               </div>
 

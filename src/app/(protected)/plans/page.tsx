@@ -23,6 +23,7 @@ export default function CatalogOrPlansPage() {
   const {
     activeProject,
     addSubscriptionPlan,
+    deleteSubscriptionPlan,
     addCreditProduct,
     deleteCreditProduct,
   } = useProjects();
@@ -39,7 +40,7 @@ export default function CatalogOrPlansPage() {
   const [planMoneda, setPlanMoneda] = useState<Currency>('USD');
   const [planFrecuencia, setPlanFrecuencia] = useState<Frequency>('mensual');
 
-  // Form states for credit product
+  // Form states for credit / single product
   const [prodNombre, setProdNombre] = useState('');
   const [prodModelo, setProdModelo] = useState('');
   const [prodPrecio, setProdPrecio] = useState('');
@@ -64,7 +65,7 @@ export default function CatalogOrPlansPage() {
     setShowAddModal(false);
   };
 
-  const handleCreateCreditProduct = async (e: React.FormEvent) => {
+  const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prodNombre.trim() || !prodPrecio || !activeProject) return;
 
@@ -83,9 +84,17 @@ export default function CatalogOrPlansPage() {
   };
 
   const handleDeleteProduct = async (prodId: string) => {
-    if (confirm('¿Deseas eliminar este producto del catálogo?')) {
+    if (confirm('¿Deseas eliminar este artículo del catálogo?')) {
       if (activeProject) {
         await deleteCreditProduct(activeProject.id, prodId);
+      }
+    }
+  };
+
+  const handleDeletePlan = async (planId: string) => {
+    if (confirm('¿Deseas eliminar este plan de suscripción?')) {
+      if (activeProject) {
+        await deleteSubscriptionPlan(activeProject.id, planId);
       }
     }
   };
@@ -101,7 +110,7 @@ export default function CatalogOrPlansPage() {
           <span>
             {isCredit && 'Productos a Crédito'}
             {isSubscription && 'Planes de Suscripción'}
-            {isSingle && 'Catálogo de Productos / Servicios'}
+            {isSingle && 'Catálogo de Artículos'}
           </span>
         </h2>
 
@@ -113,7 +122,7 @@ export default function CatalogOrPlansPage() {
           <span>
             {isCredit && '+ Registrar Producto a Crédito'}
             {isSubscription && '+ Crear Nuevo Plan de Suscripción'}
-            {isSingle && '+ Registrar Artículo / Servicio'}
+            {isSingle && '+ Registrar Artículo'}
           </span>
         </button>
       </div>
@@ -127,16 +136,73 @@ export default function CatalogOrPlansPage() {
           <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300 border border-slate-700">
             {isCredit && 'Venta a Crédito'}
             {isSubscription && 'Cobro Recurrente'}
-            {isSingle && 'Cobro Único'}
+            {isSingle && 'Pago Único'}
           </span>
         </div>
         <h3 className="text-sm font-bold text-white">{activeProject?.nombre || 'Selecciona un negocio'}</h3>
         <p className="text-xs text-slate-400">
           {isCredit && 'Catálogo de productos y artículos disponibles para vender a crédito o en cuotas.'}
           {isSubscription && 'Define planes de tarifas recurrentes para asignar rápidamente a nuevos clientes.'}
-          {isSingle && 'Catálogo de artículos y servicios para cobro único o contado.'}
+          {isSingle && 'Catálogo de artículos disponibles para la venta o fiado.'}
         </p>
       </div>
+
+      {/* RENDERIZADO PARA PAGO ÚNICO: CATÁLOGO DE ARTÍCULOS */}
+      {isSingle && (
+        <>
+          {creditProducts.length === 0 ? (
+            <div className="glass-panel rounded-2xl p-8 text-center space-y-2 border border-white/5 my-4">
+              <ShoppingBag className="w-8 h-8 text-slate-500 mx-auto" />
+              <p className="text-sm font-bold text-white">No tienes artículos registrados</p>
+              <p className="text-xs text-slate-400">
+                Registra tus artículos disponibles para vender o fiar presionando el botón superior.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1 text-xs font-bold text-slate-400">
+                <span>Artículos en Catálogo ({creditProducts.length})</span>
+                <span>Precio de Venta</span>
+              </div>
+              {creditProducts.map(prod => (
+                <div
+                  key={prod.id}
+                  className="glass-panel-interactive rounded-2xl p-4 border border-white/10 space-y-2.5"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-bold text-sm text-white">{prod.nombre}</h4>
+                        {prod.modelo && (
+                          <span className="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] text-slate-300 font-mono border border-slate-700">
+                            {prod.modelo}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right space-y-1">
+                      <span className="text-base font-black text-emerald-400 block">
+                        {formatCurrency(prod.precio)}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteProduct(prod.id)}
+                        className="p-1 text-slate-500 hover:text-rose-400 active:scale-95 transition-all inline-flex items-center"
+                        title="Eliminar artículo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1.5 text-[10px] text-slate-400 pt-2 border-t border-slate-800/80">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Disponible para venta</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* RENDERIZADO PARA NEGOCIO A CRÉDITO: LISTA DE PRODUCTOS */}
       {isCredit && (
@@ -201,8 +267,8 @@ export default function CatalogOrPlansPage() {
         </>
       )}
 
-      {/* RENDERIZADO PARA SUSCRIPCIÓN O PAGO ÚNICO: LISTA DE PLANES */}
-      {!isCredit && (
+      {/* RENDERIZADO PARA SUSCRIPCIÓN: LISTA DE PLANES */}
+      {isSubscription && (
         <>
           {plans.length === 0 ? (
             <div className="glass-panel rounded-2xl p-8 text-center space-y-2 border border-white/5 my-4">
@@ -226,9 +292,18 @@ export default function CatalogOrPlansPage() {
                         Cobro {plan.frecuencia}
                       </span>
                     </div>
-                    <span className="text-base font-black text-emerald-400">
-                      {formatCurrency(plan.monto, plan.moneda)}
-                    </span>
+                    <div className="text-right space-y-1">
+                      <span className="text-base font-black text-emerald-400 block">
+                        {formatCurrency(plan.monto, plan.moneda)}
+                      </span>
+                      <button
+                        onClick={() => handleDeletePlan(plan.id)}
+                        className="p-1 text-slate-500 hover:text-rose-400 active:scale-95 transition-all inline-flex items-center"
+                        title="Eliminar plan"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <div className="flex items-center space-x-1.5 text-[10px] text-slate-400 pt-2 border-t border-slate-800">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -248,14 +323,67 @@ export default function CatalogOrPlansPage() {
         title={
           isCredit
             ? 'Registrar Producto a Crédito 📦'
-            : isSubscription
-            ? 'Crear Plan de Suscripción ⚡'
-            : 'Registrar Artículo / Servicio 🛍️'
+            : isSingle
+            ? 'Registrar Artículo 🛍️'
+            : 'Crear Plan de Suscripción ⚡'
         }
       >
-        {isCredit ? (
+        {isSingle ? (
+          /* FORMULARIO PARA REGISTRAR ARTÍCULO EN PAGO ÚNICO (SIN FRECUENCIA NI SUSCRIPCIÓN) */
+          <form onSubmit={handleCreateProduct} className="space-y-3.5 pt-1">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
+                Nombre del Artículo *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Ej: Pepito, Harina Pan, Refresco, Zapatos..."
+                value={prodNombre}
+                onChange={e => setProdNombre(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
+                Precio de Venta ($) *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                placeholder="0.00"
+                value={prodPrecio}
+                onChange={e => setProdPrecio(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs font-bold text-emerald-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
+                Categoría / Detalle (Opcional)
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: Snacks, Bebidas, Ropa, Víveres..."
+                value={prodModelo}
+                onChange={e => setProdModelo(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/25 active:scale-98 transition-all mt-2"
+            >
+              Guardar Artículo en Google Drive
+            </button>
+          </form>
+        ) : isCredit ? (
           /* FORMULARIO PARA REGISTRAR PRODUCTO A CRÉDITO */
-          <form onSubmit={handleCreateCreditProduct} className="space-y-3.5 pt-1">
+          <form onSubmit={handleCreateProduct} className="space-y-3.5 pt-1">
             <div>
               <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
                 Nombre del Producto / Artículo *

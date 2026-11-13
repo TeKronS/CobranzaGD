@@ -10,6 +10,7 @@ import type {
   SubscriptionPlan,
   CreditProduct,
   Cuota,
+  SingleSaleItem,
 } from '../types';
 import {
   getLocalProjects,
@@ -50,6 +51,11 @@ interface ProjectsContextType {
   addSubscriptionPlan: (projectId: string, plan: Omit<SubscriptionPlan, 'id'>) => Promise<boolean>;
   addCreditProduct: (projectId: string, product: Omit<CreditProduct, 'id' | 'proyectoId'>) => Promise<boolean>;
   deleteCreditProduct: (projectId: string, productId: string) => Promise<boolean>;
+  deleteSubscriptionPlan: (projectId: string, planId: string) => Promise<boolean>;
+  addSaleToClient: (
+    clientId: string,
+    sale: { nombre: string; cantidad: number; precioTotal: number; fecha?: string }
+  ) => Promise<boolean>;
   refreshData: () => Promise<void>;
   clearAllData: () => void;
 }
@@ -549,6 +555,73 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  const deleteSubscriptionPlan = async (projectId: string, planId: string): Promise<boolean> => {
+    const updated = projects.map(p => {
+      if (p.id === projectId) {
+        const plans = p.planesSuscripcion || [];
+        return {
+          ...p,
+          planesSuscripcion: plans.filter(item => item.id !== planId),
+        };
+      }
+      return p;
+    });
+
+    setProjects(updated);
+    saveLocalProjects(updated);
+    const activeUpdated = updated.find(p => p.id === activeProject?.id);
+    if (activeUpdated) setActiveProject(activeUpdated);
+
+    const tokenToUse =
+      accessToken ||
+      (typeof window !== 'undefined' ? localStorage.getItem('cgd_drive_token') : null);
+
+    if (tokenToUse) {
+      await safeSyncDrive(tokenToUse, rawClients, updated);
+    }
+    return true;
+  };
+
+  const addSaleToClient = async (
+    clientId: string,
+    sale: { nombre: string; cantidad: number; precioTotal: number; fecha?: string }
+  ): Promise<boolean> => {
+    const target = rawClients.find(c => c.id === clientId);
+    if (!target) return false;
+
+    const fechaVenta = sale.fecha || new Date().toISOString().split('T')[0];
+    const nuevoArticulo: SingleSaleItem = {
+      id: `item-${Date.now()}`,
+      nombre: sale.nombre.trim(),
+      cantidad: sale.cantidad || 1,
+      precioTotal: sale.precioTotal || 0,
+      precioUnitario: sale.cantidad > 0 ? parseFloat((sale.precioTotal / sale.cantidad).toFixed(2)) : sale.precioTotal,
+      fecha: fechaVenta,
+    };
+
+    const articulosPrevios = target.config?.articulosVendidos || [];
+    const articulosActualizados = [nuevoArticulo, ...articulosPrevios];
+
+    const deudaAnterior = target.config?.deudaRestante !== undefined ? target.config.deudaRestante : (target.monto || 0);
+    const nuevaDeuda = parseFloat((deudaAnterior + (sale.precioTotal || 0)).toFixed(2));
+    const nuevoMontoTotal = parseFloat(((target.monto || 0) + (sale.precioTotal || 0)).toFixed(2));
+
+    const notaVenta = `[${new Date().toLocaleDateString()}] Venta agregada: ${nuevoArticulo.cantidad}x ${nuevoArticulo.nombre} ($${(nuevoArticulo.precioTotal || 0).toFixed(2)})`;
+    const notasActualizadas = target.notas ? `${target.notas}\n${notaVenta}` : notaVenta;
+
+    return await updateClient(clientId, {
+      monto: nuevoMontoTotal,
+      estado: 'activo',
+      config: {
+        ...(target.config || {}),
+        articulosVendidos: articulosActualizados,
+        deudaRestante: nuevaDeuda,
+        productoNombre: nuevoArticulo.nombre,
+      },
+      notas: notasActualizadas,
+    });
+  };
+
   const refreshData = async () => {
     if (!accessToken) return;
     setSyncStatus('syncing');
@@ -629,6 +702,8 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         addSubscriptionPlan,
         addCreditProduct,
         deleteCreditProduct,
+        deleteSubscriptionPlan,
+        addSaleToClient,
         refreshData,
         clearAllData,
       }}

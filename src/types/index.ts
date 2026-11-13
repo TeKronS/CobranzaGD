@@ -90,6 +90,15 @@ export interface MonthlyRevenue {
   suscriptores: number;
 }
 
+export interface SingleSaleItem {
+  id: string;
+  nombre: string;
+  cantidad: number;
+  precioUnitario?: number;
+  precioTotal?: number;
+  fecha: string;
+}
+
 export interface ClientDataConfig {
   precioTotal?: number;
   pagoInicial?: number;
@@ -104,6 +113,7 @@ export interface ClientDataConfig {
   productoModelo?: string;
   productoSerial?: string;
   productoCantidad?: number;
+  articulosVendidos?: SingleSaleItem[];
   deudaRestante?: number;
   transacciones?: SubscriptionTransaction[];
 }
