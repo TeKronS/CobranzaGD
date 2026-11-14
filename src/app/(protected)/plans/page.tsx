@@ -17,6 +17,7 @@ import {
   Hash,
   Layers,
   Sparkles,
+  Loader2,
 } from 'lucide-react';
 
 export default function CatalogOrPlansPage() {
@@ -33,6 +34,7 @@ export default function CatalogOrPlansPage() {
   const isSingle = activeProject?.tipo === 'unico';
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form states for subscription plan
   const [planNombre, setPlanNombre] = useState('');
@@ -51,36 +53,46 @@ export default function CatalogOrPlansPage() {
 
   const handleCreateSubscriptionPlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!planNombre.trim() || !planMonto || !activeProject) return;
+    if (!planNombre.trim() || !planMonto || !activeProject || isSubmitting) return;
 
-    await addSubscriptionPlan(activeProject.id, {
-      nombre: planNombre.trim(),
-      monto: parseFloat(planMonto) || 0,
-      moneda: planMoneda,
-      frecuencia: planFrecuencia,
-    });
+    try {
+      setIsSubmitting(true);
+      await addSubscriptionPlan(activeProject.id, {
+        nombre: planNombre.trim(),
+        monto: parseFloat(planMonto) || 0,
+        moneda: planMoneda,
+        frecuencia: planFrecuencia,
+      });
 
-    setPlanNombre('');
-    setPlanMonto('');
-    setShowAddModal(false);
+      setPlanNombre('');
+      setPlanMonto('');
+      setShowAddModal(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prodNombre.trim() || !prodPrecio || !activeProject) return;
+    if (!prodNombre.trim() || !prodPrecio || !activeProject || isSubmitting) return;
 
-    await addCreditProduct(activeProject.id, {
-      nombre: prodNombre.trim(),
-      modelo: prodModelo.trim() || undefined,
-      precio: parseFloat(prodPrecio) || 0,
-      serial: prodSerial.trim() || undefined,
-    });
+    try {
+      setIsSubmitting(true);
+      await addCreditProduct(activeProject.id, {
+        nombre: prodNombre.trim(),
+        modelo: prodModelo.trim() || undefined,
+        precio: parseFloat(prodPrecio) || 0,
+        serial: prodSerial.trim() || undefined,
+      });
 
-    setProdNombre('');
-    setProdModelo('');
-    setProdPrecio('');
-    setProdSerial('');
-    setShowAddModal(false);
+      setProdNombre('');
+      setProdModelo('');
+      setProdPrecio('');
+      setProdSerial('');
+      setShowAddModal(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDeleteProduct = async (prodId: string) => {
@@ -376,9 +388,21 @@ export default function CatalogOrPlansPage() {
 
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/25 active:scale-98 transition-all mt-2"
+              disabled={isSubmitting}
+              className={`w-full py-3.5 rounded-xl font-bold text-xs shadow-lg transition-all mt-2 flex items-center justify-center space-x-2 ${
+                isSubmitting
+                  ? 'bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-emerald-500/25 active:scale-98'
+              }`}
             >
-              Guardar Artículo en Google Drive
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <span>Guardar Artículo en Google Drive</span>
+              )}
             </button>
           </form>
         ) : isCredit ? (
@@ -443,9 +467,21 @@ export default function CatalogOrPlansPage() {
 
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/25 active:scale-98 transition-all mt-2"
+              disabled={isSubmitting}
+              className={`w-full py-3.5 rounded-xl font-bold text-xs shadow-lg transition-all mt-2 flex items-center justify-center space-x-2 ${
+                isSubmitting
+                  ? 'bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-emerald-500/25 active:scale-98'
+              }`}
             >
-              Guardar Producto en Google Drive
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <span>Guardar Producto en Google Drive</span>
+              )}
             </button>
           </form>
         ) : (
@@ -516,9 +552,21 @@ export default function CatalogOrPlansPage() {
 
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/25 active:scale-98 transition-all mt-2"
+              disabled={isSubmitting}
+              className={`w-full py-3.5 rounded-xl font-bold text-xs shadow-lg transition-all mt-2 flex items-center justify-center space-x-2 ${
+                isSubmitting
+                  ? 'bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-emerald-500/25 active:scale-98'
+              }`}
             >
-              Guardar Plan en Google Drive
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <span>Guardar Plan en Google Drive</span>
+              )}
             </button>
           </form>
         )}

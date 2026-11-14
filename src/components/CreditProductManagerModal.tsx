@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { BottomSheet } from './BottomSheet';
 import { useProjects } from '../context/ProjectsContext';
 import type { CreditProduct, Currency } from '../types';
-import { Package, Plus, Trash2, Tag, ShieldCheck, DollarSign } from 'lucide-react';
+import { Package, Plus, Trash2, Tag, ShieldCheck, DollarSign, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../lib/clients';
 
 interface CreditProductManagerModalProps {
@@ -18,24 +18,30 @@ export function CreditProductManagerModal({ isOpen, onClose }: CreditProductMana
   const [modelo, setModelo] = useState('');
   const [precio, setPrecio] = useState('');
   const [serial, setSerial] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const products = activeProject?.productosCredito || [];
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre.trim() || !precio || !activeProject) return;
+    if (!nombre.trim() || !precio || !activeProject || isSubmitting) return;
 
-    await addCreditProduct(activeProject.id, {
-      nombre: nombre.trim(),
-      modelo: modelo.trim() || undefined,
-      precio: parseFloat(precio) || 0,
-      serial: serial.trim() || undefined,
-    });
+    try {
+      setIsSubmitting(true);
+      await addCreditProduct(activeProject.id, {
+        nombre: nombre.trim(),
+        modelo: modelo.trim() || undefined,
+        precio: parseFloat(precio) || 0,
+        serial: serial.trim() || undefined,
+      });
 
-    setNombre('');
-    setModelo('');
-    setPrecio('');
-    setSerial('');
+      setNombre('');
+      setModelo('');
+      setPrecio('');
+      setSerial('');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = async (prodId: string) => {
@@ -168,9 +174,21 @@ export function CreditProductManagerModal({ isOpen, onClose }: CreditProductMana
 
           <button
             type="submit"
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/20 active:scale-98 transition-all"
+            disabled={isSubmitting}
+            className={`w-full py-3 rounded-xl font-extrabold text-xs shadow-lg transition-all flex items-center justify-center space-x-2 ${
+              isSubmitting
+                ? 'bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 cursor-not-allowed'
+                : 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-emerald-500/20 active:scale-98'
+            }`}
           >
-            Guardar Producto en Catálogo
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                <span>Guardando...</span>
+              </>
+            ) : (
+              <span>Guardar Producto en Catálogo</span>
+            )}
           </button>
         </form>
       </div>
