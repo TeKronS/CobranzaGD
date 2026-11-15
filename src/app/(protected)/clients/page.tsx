@@ -26,13 +26,22 @@ import {
   ShoppingBag,
   Plus,
   DollarSign,
+  ArrowUpDown,
 } from 'lucide-react';
+
+export type ClientSortOption =
+  | 'mayor_deuda'
+  | 'menor_deuda'
+  | 'fecha_vence'
+  | 'fecha_reciente'
+  | 'nombre_asc';
 
 export default function ClientsPage() {
   const { clients, activeProject, archiveClient, reactivateClient, refundSubscription, addSaleToClient } = useProjects();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'activos' | 'inactivos' | 'mora' | 'proximos' | 'todos'>('activos');
+  const [sortBy, setSortBy] = useState<ClientSortOption>('mayor_deuda');
   const [selectedClient, setSelectedClient] = useState<EnrichedClient | null>(null);
   const [paymentModalClient, setPaymentModalClient] = useState<EnrichedClient | null>(null);
   const [refundModalClient, setRefundModalClient] = useState<EnrichedClient | null>(null);
@@ -158,6 +167,46 @@ export default function ClientsPage() {
   const moraCount = clients.filter(c => c.estadoCalc === 'mora' || c.estadoCalc === 's_vencido').length;
   const proximosCount = clients.filter(c => c.estadoCalc === 'proximo' || c.estadoCalc === 's_vencer' || c.estadoCalc === 'hoy').length;
 
+  // Sorting logic with default: mayor deuda -> menor deuda
+  const sortedClients = React.useMemo(() => {
+    return [...filteredClients].sort((a, b) => {
+      const deudaA = a.deudaRestante !== undefined ? a.deudaRestante : (a.monto || 0);
+      const deudaB = b.deudaRestante !== undefined ? b.deudaRestante : (b.monto || 0);
+
+      switch (sortBy) {
+        case 'mayor_deuda':
+          if (deudaB !== deudaA) return deudaB - deudaA;
+          return a.nombre.localeCompare(b.nombre);
+
+        case 'menor_deuda':
+          if (deudaA !== deudaB) return deudaA - deudaB;
+          return a.nombre.localeCompare(b.nombre);
+
+        case 'fecha_vence': {
+          if (a.fechaVence && b.fechaVence) {
+            return new Date(a.fechaVence).getTime() - new Date(b.fechaVence).getTime();
+          }
+          if (a.fechaVence) return -1;
+          if (b.fechaVence) return 1;
+          return deudaB - deudaA;
+        }
+
+        case 'fecha_reciente': {
+          const timeA = new Date(a.fechaInicio || a.fechaRegistro || 0).getTime();
+          const timeB = new Date(b.fechaInicio || b.fechaRegistro || 0).getTime();
+          if (timeB !== timeA) return timeB - timeA;
+          return a.nombre.localeCompare(b.nombre);
+        }
+
+        case 'nombre_asc':
+          return a.nombre.localeCompare(b.nombre);
+
+        default:
+          return deudaB - deudaA;
+      }
+    });
+  }, [filteredClients, sortBy]);
+
   return (
     <div className="space-y-4 pb-6">
       {/* CONTENEDOR DE FILTROS SIEMPRE VISIBLES (STICKY TOP BAR) */}
@@ -226,9 +275,37 @@ export default function ClientsPage() {
             </button>
           ))}
         </div>
+
+        {/* BARRA DE ORDENAMIENTO & CONTEO */}
+        <div className="flex items-center justify-between pt-1 px-0.5 text-xs border-t border-slate-800/60">
+          <span className="text-[11px] font-bold text-slate-400">
+            {sortedClients.length} {sortedClients.length === 1 ? 'cliente' : 'clientes'}
+          </span>
+
+          <div className="flex items-center space-x-1.5">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center space-x-1">
+              <ArrowUpDown className="w-3 h-3 text-emerald-400" />
+              <span>Ordenar:</span>
+            </span>
+
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as ClientSortOption)}
+              className="bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1 text-xs font-bold text-emerald-300 focus:outline-none focus:ring-1 focus:ring-emerald-400 cursor-pointer shadow-sm"
+            >
+              <option value="mayor_deuda">💰 Mayor Deuda (Predeterminado)</option>
+              <option value="menor_deuda">💵 Menor Deuda</option>
+              {activeProject?.tipo !== 'unico' && (
+                <option value="fecha_vence">📅 Próximo a Vencer</option>
+              )}
+              <option value="fecha_reciente">🕒 Más Recientes (Fecha Registro)</option>
+              <option value="nombre_asc">🔤 Nombre (A - Z)</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      {filteredClients.length === 0 ? (
+      {sortedClients.length === 0 ? (
         <div className="glass-panel rounded-2xl p-8 text-center space-y-2 border border-white/5 my-4">
           <Users className="w-8 h-8 text-slate-500 mx-auto" />
           <p className="text-sm font-bold text-white">No se encontraron clientes en este filtro</p>
@@ -238,7 +315,7 @@ export default function ClientsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredClients.map(client => (
+          {sortedClients.map(client => (
             <ClientMobileCard
               key={client.id}
               client={client}

@@ -62,7 +62,11 @@ export default function DashboardPage() {
     c => c.estadoCalc === 'proximo' || c.estadoCalc === 's_vencer' || c.estadoCalc === 'hoy'
   );
 
-  const displayClients = dashboardFilter === 'vencidos' ? expiredClients : upcomingClients;
+  const displayClients = (dashboardFilter === 'vencidos' ? expiredClients : upcomingClients).sort((a, b) => {
+    const deudaA = a.deudaRestante !== undefined ? a.deudaRestante : (a.monto || 0);
+    const deudaB = b.deudaRestante !== undefined ? b.deudaRestante : (b.monto || 0);
+    return deudaB - deudaA;
+  });
 
   return (
     <div className="space-y-5 pb-6">
