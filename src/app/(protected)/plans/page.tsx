@@ -49,7 +49,25 @@ export default function CatalogOrPlansPage() {
   const [prodSerial, setProdSerial] = useState('');
 
   const plans = activeProject?.planesSuscripcion || [];
-  const creditProducts = activeProject?.productosCredito || [];
+  const creditProducts = React.useMemo(() => {
+    const list = [...(activeProject?.productosCredito || [])];
+    if (activeProject?.tipo === 'unico' && activeProject?.planesSuscripcion) {
+      for (const p of activeProject.planesSuscripcion) {
+        if (!list.some(item => item.nombre.toLowerCase() === p.nombre.toLowerCase())) {
+          list.push({
+            id: p.id,
+            proyectoId: activeProject.id,
+            nombre: p.nombre,
+            precio: p.monto,
+            modelo: undefined,
+            serial: undefined,
+            fechaRegistro: '',
+          });
+        }
+      }
+    }
+    return list;
+  }, [activeProject]);
 
   const handleCreateSubscriptionPlan = async (e: React.FormEvent) => {
     e.preventDefault();

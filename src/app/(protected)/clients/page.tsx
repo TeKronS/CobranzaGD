@@ -45,6 +45,27 @@ export default function ClientsPage() {
   const [saleItemDate, setSaleItemDate] = useState('');
   const [isAddingSale, setIsAddingSale] = useState(false);
 
+  const unicoProducts = React.useMemo(() => {
+    if (!activeProject) return [];
+    const prods = [...(activeProject.productosCredito || [])];
+    if (activeProject.tipo === 'unico' && activeProject.planesSuscripcion) {
+      for (const p of activeProject.planesSuscripcion) {
+        if (!prods.some(existing => existing.nombre.toLowerCase() === p.nombre.toLowerCase())) {
+          prods.push({
+            id: p.id,
+            proyectoId: activeProject.id,
+            nombre: p.nombre,
+            precio: p.monto,
+            modelo: undefined,
+            serial: undefined,
+            fechaRegistro: '',
+          });
+        }
+      }
+    }
+    return prods;
+  }, [activeProject]);
+
   const handleAddSale = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClient || !saleItemName.trim() || !saleItemTotal) return;
@@ -368,7 +389,7 @@ export default function ClientsPage() {
                     </span>
 
                     {/* SELECTOR DESDE CATÁLOGO SI EXISTEN ARTÍCULOS */}
-                    {activeProject?.productosCredito && activeProject.productosCredito.length > 0 && (
+                    {unicoProducts.length > 0 && (
                       <div>
                         <label className="block text-[10px] text-slate-400 uppercase font-semibold mb-0.5">
                           Seleccionar del Catálogo (Opcional)
@@ -377,7 +398,7 @@ export default function ClientsPage() {
                           onChange={e => {
                             const pId = e.target.value;
                             if (!pId) return;
-                            const prod = activeProject.productosCredito?.find(p => p.id === pId);
+                            const prod = unicoProducts.find(p => p.id === pId);
                             if (prod) {
                               setSaleItemName(prod.nombre);
                               const q = parseInt(saleItemQty) || 1;
@@ -388,7 +409,7 @@ export default function ClientsPage() {
                           defaultValue=""
                         >
                           <option value="">-- Cargar artículo del catálogo --</option>
-                          {activeProject.productosCredito.map(p => (
+                          {unicoProducts.map(p => (
                             <option key={p.id} value={p.id}>
                               {p.nombre} {p.modelo ? `(${p.modelo})` : ''} — ${p.precio.toFixed(2)}
                             </option>
