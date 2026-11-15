@@ -489,14 +489,24 @@ export function calculateDashboardStats(clients: EnrichedClient[], projectType: 
         }
       }
     } else {
-      if (c.estadoCalc !== 'pagado') {
-        stats.montoPendiente += c.deudaRestante || c.monto;
+      const isUnico = projectType === 'unico' || c.frecuencia === 'unico';
+
+      if (c.estadoCalc !== 'pagado' && c.estado !== 'pagado') {
+        stats.montoPendiente += (c.deudaRestante !== undefined ? c.deudaRestante : (c.monto || 0));
       }
 
-      const paidSum = (c.planPagos || [])
-        .filter(cuota => cuota.estado === 'pagado')
-        .reduce((s, cuota) => s + cuota.monto, 0);
-      stats.capitalRecuperado = (stats.capitalRecuperado || 0) + paidSum;
+      if (isUnico) {
+        const deuda = c.config?.deudaRestante !== undefined ? c.config.deudaRestante : (c.monto || 0);
+        const abonado = c.estado === 'pagado' || c.estadoCalc === 'pagado'
+          ? (c.monto || 0)
+          : Math.max(0, (c.monto || 0) - deuda);
+        stats.capitalRecuperado = (stats.capitalRecuperado || 0) + abonado;
+      } else {
+        const paidSum = (c.planPagos || [])
+          .filter(cuota => cuota.estado === 'pagado')
+          .reduce((s, cuota) => s + cuota.monto, 0);
+        stats.capitalRecuperado = (stats.capitalRecuperado || 0) + paidSum;
+      }
     }
   });
 
